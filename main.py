@@ -5,6 +5,7 @@ import os
 import requests
 import json
 import logging
+import psutil
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -99,9 +100,9 @@ async def on_ready():
         # Clear threads and create new one on startup
         new_thread_slug = clear_and_create_thread()
         if new_thread_slug:
-            await channel.send(f"AnythingLLM bot is online with new thread: {new_thread_slug}")
+            await channel.send(f"Pepper bot is online with new thread: {new_thread_slug}")
         else:
-            await channel.send("AnythingLLM bot is online, but failed to reset thread.")
+            await channel.send("Pepper bot is online, but I think AnythingLLM is offline.")
         logger.info(f"Sent startup message to channel {CHANNEL_ID}")
     else:
         logger.error(f"Channel {CHANNEL_ID} not found. Check CHANNEL_ID in .env.")
@@ -197,6 +198,18 @@ async def ping(ctx):
     # Combine responses
     await ctx.send(f"{bot_status}\n{api_status}")
 
+
+@bot.command()
+async def pepper(ctx):
+    """Check if pepper.exe is running on the system."""
+    if ctx.channel.id != CHANNEL_ID:
+        return
+
+    is_running = any(proc.name().lower() == "pepper.exe" for proc in psutil.process_iter(['name']))
+    if is_running:
+        await ctx.send("pepper.exe is running.")
+    else:
+        await ctx.send("pepper.exe is NOT running.")
 @bot.command()
 async def clear(ctx):
     """Clear all chats in the discord workspace by deleting all threads and creating a new one."""
@@ -210,5 +223,21 @@ async def clear(ctx):
     else:
         await ctx.send("Failed to clear chats or create new thread.")
         logger.error(f"Failed to clear threads or create new thread by {ctx.author}")
+
+@bot.command()
+async def reconnect(ctx):
+    """Reconnect to AnythingLLM by resetting threads and creating a new one."""
+    if ctx.channel.id != CHANNEL_ID:
+        return
+
+    logger.info(f"Reconnect command executed by {ctx.author}")
+    new_thread_slug = clear_and_create_thread()
+    if new_thread_slug:
+        await ctx.send(f"Reconnected to AnythingLLM with new thread: {new_thread_slug}")
+        logger.info(f"Successfully reconnected and created new thread: {new_thread_slug}")
+    else:
+        await ctx.send("Failed to reconnect to AnythingLLM. Check if the API is online.")
+        logger.error(f"Failed to reconnect by {ctx.author}")
+
 
 bot.run(DISCORD_TOKEN)
