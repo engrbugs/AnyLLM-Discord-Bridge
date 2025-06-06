@@ -7,6 +7,9 @@ import json
 import logging
 import psutil
 
+API_TIMEOUT = 90
+SILENT_MODE = True
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -39,7 +42,7 @@ def get_current_thread_slug():
         response = requests.get(
             f"{ANYTHINGLLM_API_URL}/workspaces",
             headers=headers,
-            timeout=60
+            timeout=API_TIMEOUT
         )
         response.raise_for_status()
         data = response.json()
@@ -61,7 +64,7 @@ def clear_and_create_thread():
         response = requests.get(
             f"{ANYTHINGLLM_API_URL}/workspaces",
             headers=headers,
-            timeout=60
+            timeout=API_TIMEOUT
         )
         response.raise_for_status()
         data = response.json()
@@ -72,7 +75,7 @@ def clear_and_create_thread():
             response = requests.delete(
                 f"{ANYTHINGLLM_API_URL}/workspace/discord/thread/{thread['slug']}",
                 headers=headers,
-                timeout=60
+                timeout=API_TIMEOUT
             )
             response.raise_for_status()
             logger.info(f"Deleted thread {thread['slug']} in discord workspace")
@@ -82,7 +85,7 @@ def clear_and_create_thread():
             f"{ANYTHINGLLM_API_URL}/workspace/discord/thread/new",
             headers=headers,
             json={"name": "Discord Thread"},
-            timeout=60
+            timeout=API_TIMEOUT
         )
         response.raise_for_status()
         new_thread = response.json().get("thread", {})
@@ -99,11 +102,12 @@ async def on_ready():
     if channel:
         # Clear threads and create new one on startup
         new_thread_slug = clear_and_create_thread()
-        if new_thread_slug:
-            await channel.send(f"Pepper bot is online with new thread: {new_thread_slug}")
-        else:
-            await channel.send("Pepper bot is online, but I think AnythingLLM is offline.")
-        logger.info(f"Sent startup message to channel {CHANNEL_ID}")
+        if not SILENT_MODE:
+            if new_thread_slug:
+                await channel.send(f"Pepper bot is online with new thread: {new_thread_slug}")
+            else:
+                await channel.send("Pepper bot is online, but I think AnythingLLM is offline.")
+        logger.info(f"Startup message sent to channel {CHANNEL_ID} (silent: {SILENT_MODE})")
     else:
         logger.error(f"Channel {CHANNEL_ID} not found. Check CHANNEL_ID in .env.")
 
@@ -141,7 +145,7 @@ async def on_message(message):
             f"{ANYTHINGLLM_API_URL}/workspace/discord/thread/{thread_slug}/chat",
             headers=headers,
             json=payload,
-            timeout=60
+            timeout=API_TIMEOUT
         )
         response.raise_for_status()
         data = response.json()
@@ -149,7 +153,7 @@ async def on_message(message):
         await message.channel.send(reply)
         logger.info(f"Sent response to {message.author}: {reply[:50]}...")
     except requests.exceptions.Timeout:
-        logger.error("API timed out after 60 seconds")
+        logger.error(f"API timed out after {API_TIMEOUT} seconds")
         await message.channel.send("Error: API timed out.")
     except requests.exceptions.HTTPError as e:
         logger.error(f"API HTTP error: {e.response.status_code} - {e.response.text}")
